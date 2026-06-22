@@ -26,11 +26,14 @@ public:
     Cell getCurrentPlayer() const;
 
     bool canPlace(int row, int col) const;
+    bool canPlaceForPlayer(int row, int col, Cell player) const;
     bool placeStone(int row, int col);
 
     GameState checkGameState();
 
     bool hasValidMove(Cell player) const;
+    int countValidMoves(Cell player) const;
+
     bool isGameOver() const;
 
     int countStones(Cell player) const;
@@ -43,7 +46,6 @@ private:
     Cell currentPlayer;
 
     bool isInside(int row, int col) const;
-    bool canPlaceForPlayer(int row, int col, Cell player) const;
     void flipStones(int row, int col, Cell player);
 };
 

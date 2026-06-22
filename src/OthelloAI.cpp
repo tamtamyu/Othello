@@ -33,6 +33,7 @@ int OthelloAI::evaluateMove(const OthelloGame &game, int row, int col, const AIP
     OthelloGame copy = game;
 
     OthelloGame::Cell player = copy.getCurrentPlayer();
+    OthelloGame::Cell enemy = OthelloGame::opponent(player);
 
     int before = copy.countStones(player);
 
@@ -46,43 +47,21 @@ int OthelloAI::evaluateMove(const OthelloGame &game, int row, int col, const AIP
     score += params.positionScore(row, col);
     score += flippedCount * params.flipWeight();
 
+    // Lv2: 自分が置いた直後、相手が角を取れるなら減点
     for (int r = 0; r < OthelloGame::SIZE; ++r) {
         for (int c = 0; c < OthelloGame::SIZE; ++c) {
-            if (isCorner(r, c) && copy.canPlace(r, c)) {
+            if (isCorner(r, c) && copy.canPlaceForPlayer(r, c, enemy)) {
                 score += params.giveCornerPenalty();
             }
         }
     }
 
-    int opponentMoves = 0;
-    int ownMoves = 0;
+    // Lv3: 合法手数 Mobility
+    // 自分の次の選択肢が多く、相手の選択肢が少ないほど高評価
+    int ownMoves = copy.countValidMoves(player);
+    int enemyMoves = copy.countValidMoves(enemy);
 
-    for (int r = 0; r < OthelloGame::SIZE; ++r) {
-        for (int c = 0; c < OthelloGame::SIZE; ++c) {
-            if (copy.canPlace(r, c)) {
-                ++opponentMoves;
-            }
-        }
-    }
-
-    OthelloGame playerTurnCopy = copy;
-
-    while (playerTurnCopy.getCurrentPlayer() != player) {
-        playerTurnCopy.checkGameState();
-        break;
-    }
-
-    for (int r = 0; r < OthelloGame::SIZE; ++r) {
-        for (int c = 0; c < OthelloGame::SIZE; ++c) {
-            if (copy.hasValidMove(player)) {
-                if (copy.getCell(r, c) == OthelloGame::Empty) {
-                    // 正確な自分の合法手数は次のLvで関数追加して改善する
-                }
-            }
-        }
-    }
-
-    score -= opponentMoves * params.mobilityWeight();
+    score += (ownMoves - enemyMoves) * params.mobilityWeight();
 
     return score;
 }

@@ -43,6 +43,39 @@ bool OthelloGame::canPlace(int row, int col) const
     return canPlaceForPlayer(row, col, currentPlayer);
 }
 
+bool OthelloGame::canPlaceForPlayer(int row, int col, Cell player) const
+{
+    if (!isInside(row, col)) return false;
+    if (board[row][col] != Empty) return false;
+
+    Cell enemy = opponent(player);
+
+    const int directions[8][2] = {
+        {-1, -1}, {-1, 0}, {-1, 1},
+        { 0, -1},          { 0, 1},
+        { 1, -1}, { 1, 0}, { 1, 1}
+    };
+
+    for (const auto &dir : directions) {
+        int r = row + dir[0];
+        int c = col + dir[1];
+
+        bool foundEnemy = false;
+
+        while (isInside(r, c) && board[r][c] == enemy) {
+            foundEnemy = true;
+            r += dir[0];
+            c += dir[1];
+        }
+
+        if (foundEnemy && isInside(r, c) && board[r][c] == player) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 bool OthelloGame::placeStone(int row, int col)
 {
     if (!canPlace(row, col)) {
@@ -74,15 +107,22 @@ OthelloGame::GameState OthelloGame::checkGameState()
 
 bool OthelloGame::hasValidMove(Cell player) const
 {
+    return countValidMoves(player) > 0;
+}
+
+int OthelloGame::countValidMoves(Cell player) const
+{
+    int count = 0;
+
     for (int row = 0; row < SIZE; ++row) {
         for (int col = 0; col < SIZE; ++col) {
             if (canPlaceForPlayer(row, col, player)) {
-                return true;
+                ++count;
             }
         }
     }
 
-    return false;
+    return count;
 }
 
 bool OthelloGame::isGameOver() const
@@ -124,39 +164,6 @@ OthelloGame::Cell OthelloGame::opponent(Cell player)
 bool OthelloGame::isInside(int row, int col) const
 {
     return row >= 0 && row < SIZE && col >= 0 && col < SIZE;
-}
-
-bool OthelloGame::canPlaceForPlayer(int row, int col, Cell player) const
-{
-    if (!isInside(row, col)) return false;
-    if (board[row][col] != Empty) return false;
-
-    Cell enemy = opponent(player);
-
-    const int directions[8][2] = {
-        {-1, -1}, {-1, 0}, {-1, 1},
-        { 0, -1},          { 0, 1},
-        { 1, -1}, { 1, 0}, { 1, 1}
-    };
-
-    for (const auto &dir : directions) {
-        int r = row + dir[0];
-        int c = col + dir[1];
-
-        bool foundEnemy = false;
-
-        while (isInside(r, c) && board[r][c] == enemy) {
-            foundEnemy = true;
-            r += dir[0];
-            c += dir[1];
-        }
-
-        if (foundEnemy && isInside(r, c) && board[r][c] == player) {
-            return true;
-        }
-    }
-
-    return false;
 }
 
 void OthelloGame::flipStones(int row, int col, Cell player)
