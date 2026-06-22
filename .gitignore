@@ -1,0 +1,21 @@
+# Build
+build/
+
+# Qt Creator
+*.pro.user
+.qtcreator/
+
+# clangd
+.qtc_clangd/
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake-build-*/
+
+# VSCode
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
