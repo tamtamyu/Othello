@@ -3,11 +3,11 @@
 
 #include <QMainWindow>
 #include <QLabel>
-#include <QGridLayout>
 #include <QPushButton>
+#include <QComboBox>
 
 #include "OthelloGame.h"
-#include "OthelloCellButton.h"
+#include "OthelloBoard.h"
 
 class OthelloWindow : public QMainWindow
 {
@@ -17,21 +17,28 @@ public:
     explicit OthelloWindow(QWidget *parent = nullptr);
 
 private slots:
-    void handleCellClicked();
+    void handleCellClicked(int row, int col);
     void resetGame();
+    void handleModeChanged(int index);
 
 private:
+    enum PlayMode {
+        HumanVsHuman,
+        HumanVsCpu
+    };
+
     OthelloGame game;
+    PlayMode playMode;
 
     QWidget *centralWidget;
-    QGridLayout *boardLayout;
+    OthelloBoard *boardWidget;
 
     QLabel *turnLabel;
     QLabel *scoreLabel;
     QLabel *mistakeLabel;
 
+    QComboBox *modeComboBox;
     QPushButton *resetButton;
-    OthelloCellButton *buttons[OthelloGame::SIZE][OthelloGame::SIZE];
 
     int blackMistakeCount;
     int whiteMistakeCount;
@@ -41,6 +48,11 @@ private:
     void updateStatus();
 
     void addMistake(OthelloGame::Cell player);
+
+    bool isCpuTurn() const;
+    void runCpuTurn();
+
+    void handleAfterMove();
 
     void showPassMessage();
     void showFinishMessage();

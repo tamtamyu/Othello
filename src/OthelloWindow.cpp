@@ -1,17 +1,22 @@
 #include "OthelloWindow.h"
+#include "OthelloAI.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QMessageBox>
+#include <QTimer>
 
 OthelloWindow::OthelloWindow(QWidget *parent)
     : QMainWindow(parent),
+      playMode(HumanVsHuman),
       blackMistakeCount(0),
       whiteMistakeCount(0)
 {
     setupUI();
 
     game.reset();
+    boardWidget->setGame(&game);
+
     updateBoard();
     updateStatus();
 }
@@ -30,49 +35,49 @@ void OthelloWindow::setupUI()
     turnLabel = new QLabel(this);
     scoreLabel = new QLabel(this);
     mistakeLabel = new QLabel(this);
+
+    modeComboBox = new QComboBox(this);
+    modeComboBox->addItem("人対人");
+    modeComboBox->addItem("CPU戦");
+
     resetButton = new QPushButton("リセット", this);
 
     topLayout->addWidget(turnLabel);
     topLayout->addStretch();
     topLayout->addWidget(scoreLabel);
     topLayout->addWidget(mistakeLabel);
+    topLayout->addWidget(modeComboBox);
     topLayout->addWidget(resetButton);
 
-    boardLayout = new QGridLayout();
-    boardLayout->setSpacing(0);
-    boardLayout->setContentsMargins(0, 0, 0, 0);
-
-    for (int row = 0; row < OthelloGame::SIZE; ++row) {
-        for (int col = 0; col < OthelloGame::SIZE; ++col) {
-            buttons[row][col] = new OthelloCellButton(this);
-
-            buttons[row][col]->setProperty("row", row);
-            buttons[row][col]->setProperty("col", col);
-
-            connect(buttons[row][col], &QPushButton::clicked,
-                    this, &OthelloWindow::handleCellClicked);
-
-            boardLayout->addWidget(buttons[row][col], row, col);
-        }
-    }
+    boardWidget = new OthelloBoard(this);
 
     mainLayout->addLayout(topLayout);
-    mainLayout->addLayout(boardLayout);
+    mainLayout->addWidget(boardWidget, 0, Qt::AlignCenter);
+
+    connect(boardWidget, &OthelloBoard::cellClicked,
+            this, &OthelloWindow::handleCellClicked);
 
     connect(resetButton, &QPushButton::clicked,
             this, &OthelloWindow::resetGame);
 
-    setWindowTitle("オセロ - 人対人");
-    setFixedSize(536, 590);
+    connect(modeComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &OthelloWindow::handleModeChanged);
+
+    setWindowTitle("オセロ");
+    setFixedSize(680, 590);
 }
 
-void OthelloWindow::handleCellClicked()
+void OthelloWindow::handleModeChanged(int index)
 {
-    QPushButton *button = qobject_cast<QPushButton *>(sender());
-    if (!button) return;
+    playMode = index == 0 ? HumanVsHuman : HumanVsCpu;
+    resetGame();
+}
 
-    int row = button->property("row").toInt();
-    int col = button->property("col").toInt();
+void OthelloWindow::handleCellClicked(int row, int col)
+{
+    if (isCpuTurn()) {
+        return;
+    }
 
     OthelloGame::Cell player = game.getCurrentPlayer();
 
@@ -82,6 +87,11 @@ void OthelloWindow::handleCellClicked()
         return;
     }
 
+    handleAfterMove();
+}
+
+void OthelloWindow::handleAfterMove()
+{
     OthelloGame::GameState state = game.checkGameState();
 
     updateBoard();
@@ -93,7 +103,34 @@ void OthelloWindow::handleCellClicked()
         updateStatus();
     } else if (state == OthelloGame::Finished) {
         showFinishMessage();
+        return;
     }
+
+    if (isCpuTurn()) {
+        QTimer::singleShot(500, this, &OthelloWindow::runCpuTurn);
+    }
+}
+
+bool OthelloWindow::isCpuTurn() const
+{
+    return playMode == HumanVsCpu
+           && game.getCurrentPlayer() == OthelloGame::White;
+}
+
+void OthelloWindow::runCpuTurn()
+{
+    if (!isCpuTurn()) {
+        return;
+    }
+
+    int row = -1;
+    int col = -1;
+
+    if (OthelloAI::chooseMove(game, row, col)) {
+        game.placeStone(row, col);
+    }
+
+    handleAfterMove();
 }
 
 void OthelloWindow::resetGame()
@@ -105,6 +142,10 @@ void OthelloWindow::resetGame()
 
     updateBoard();
     updateStatus();
+
+    if (isCpuTurn()) {
+        QTimer::singleShot(500, this, &OthelloWindow::runCpuTurn);
+    }
 }
 
 void OthelloWindow::addMistake(OthelloGame::Cell player)
@@ -118,17 +159,15 @@ void OthelloWindow::addMistake(OthelloGame::Cell player)
 
 void OthelloWindow::updateBoard()
 {
-    for (int row = 0; row < OthelloGame::SIZE; ++row) {
-        for (int col = 0; col < OthelloGame::SIZE; ++col) {
-            buttons[row][col]->setCell(game.getCell(row, col));
-        }
-    }
+    boardWidget->update();
 }
 
 void OthelloWindow::updateStatus()
 {
+    QString modeText = playMode == HumanVsHuman ? "人対人" : "CPU戦";
+
     turnLabel->setText(
-        "手番: " + playerName(game.getCurrentPlayer())
+        "モード: " + modeText + " / 手番: " + playerName(game.getCurrentPlayer())
     );
 
     scoreLabel->setText(
@@ -190,7 +229,7 @@ QString OthelloWindow::playerName(OthelloGame::Cell player) const
     }
 
     if (player == OthelloGame::White) {
-        return "白";
+        return playMode == HumanVsCpu ? "白 CPU" : "白";
     }
 
     return "なし";

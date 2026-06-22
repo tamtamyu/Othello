@@ -44,7 +44,6 @@ private:
 
     bool isInside(int row, int col) const;
     bool canPlaceForPlayer(int row, int col, Cell player) const;
-
     void flipStones(int row, int col, Cell player);
 };
 
