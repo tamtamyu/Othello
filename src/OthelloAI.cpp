@@ -22,14 +22,20 @@ bool OthelloAI::chooseMove(const OthelloGame &game, int &bestRow, int &bestCol)
                 OthelloGame copy = game;
                 copy.placeStone(row, col);
 
-                int score = minimax(
-                    copy,
-                    SEARCH_DEPTH - 1,
-                    aiPlayer,
-                    params,
-                    alpha,
-                    beta
-                );
+                int score;
+
+                if (countEmptyCells(copy) <= ENDGAME_EMPTY_THRESHOLD) {
+                    score = endgameSearch(copy, aiPlayer, alpha, beta);
+                } else {
+                    score = minimax(
+                        copy,
+                        SEARCH_DEPTH - 1,
+                        aiPlayer,
+                        params,
+                        alpha,
+                        beta
+                    );
+                }
 
                 if (score > bestScore) {
                     bestScore = score;
@@ -56,7 +62,15 @@ int OthelloAI::minimax(OthelloGame game,
 {
     OthelloGame::GameState state = game.checkGameState();
 
-    if (state == OthelloGame::Finished || depth == 0) {
+    if (state == OthelloGame::Finished) {
+        return evaluateFinalResult(game, aiPlayer);
+    }
+
+    if (countEmptyCells(game) <= ENDGAME_EMPTY_THRESHOLD) {
+        return endgameSearch(game, aiPlayer, alpha, beta);
+    }
+
+    if (depth == 0) {
         return evaluateBoard(game, aiPlayer, params);
     }
 
@@ -134,6 +148,77 @@ int OthelloAI::minimax(OthelloGame game,
     }
 }
 
+int OthelloAI::endgameSearch(OthelloGame game,
+                             OthelloGame::Cell aiPlayer,
+                             int alpha,
+                             int beta)
+{
+    OthelloGame::GameState state = game.checkGameState();
+
+    if (state == OthelloGame::Finished) {
+        return evaluateFinalResult(game, aiPlayer);
+    }
+
+    OthelloGame::Cell currentPlayer = game.getCurrentPlayer();
+    bool maximizing = currentPlayer == aiPlayer;
+
+    if (maximizing) {
+        int bestScore = -100000000;
+
+        for (int row = 0; row < OthelloGame::SIZE; ++row) {
+            for (int col = 0; col < OthelloGame::SIZE; ++col) {
+                if (game.canPlace(row, col)) {
+                    OthelloGame copy = game;
+                    copy.placeStone(row, col);
+
+                    int score = endgameSearch(copy, aiPlayer, alpha, beta);
+
+                    if (score > bestScore) {
+                        bestScore = score;
+                    }
+
+                    if (bestScore > alpha) {
+                        alpha = bestScore;
+                    }
+
+                    if (beta <= alpha) {
+                        return bestScore;
+                    }
+                }
+            }
+        }
+
+        return bestScore;
+    } else {
+        int bestScore = 100000000;
+
+        for (int row = 0; row < OthelloGame::SIZE; ++row) {
+            for (int col = 0; col < OthelloGame::SIZE; ++col) {
+                if (game.canPlace(row, col)) {
+                    OthelloGame copy = game;
+                    copy.placeStone(row, col);
+
+                    int score = endgameSearch(copy, aiPlayer, alpha, beta);
+
+                    if (score < bestScore) {
+                        bestScore = score;
+                    }
+
+                    if (bestScore < beta) {
+                        beta = bestScore;
+                    }
+
+                    if (beta <= alpha) {
+                        return bestScore;
+                    }
+                }
+            }
+        }
+
+        return bestScore;
+    }
+}
+
 int OthelloAI::evaluateBoard(const OthelloGame &game,
                              OthelloGame::Cell aiPlayer,
                              const AIParameters &params)
@@ -178,17 +263,43 @@ int OthelloAI::evaluateBoard(const OthelloGame &game,
         }
     }
 
-    if (game.isGameOver()) {
-        OthelloGame::Cell winner = game.getWinner();
+    return score;
+}
 
-        if (winner == aiPlayer) {
-            score += 100000;
-        } else if (winner == enemy) {
-            score -= 100000;
+int OthelloAI::evaluateFinalResult(const OthelloGame &game,
+                                   OthelloGame::Cell aiPlayer)
+{
+    OthelloGame::Cell enemy = OthelloGame::opponent(aiPlayer);
+
+    int aiStones = game.countStones(aiPlayer);
+    int enemyStones = game.countStones(enemy);
+
+    int diff = aiStones - enemyStones;
+
+    if (diff > 0) {
+        return 100000 + diff;
+    }
+
+    if (diff < 0) {
+        return -100000 + diff;
+    }
+
+    return 0;
+}
+
+int OthelloAI::countEmptyCells(const OthelloGame &game)
+{
+    int count = 0;
+
+    for (int row = 0; row < OthelloGame::SIZE; ++row) {
+        for (int col = 0; col < OthelloGame::SIZE; ++col) {
+            if (game.getCell(row, col) == OthelloGame::Empty) {
+                ++count;
+            }
         }
     }
 
-    return score;
+    return count;
 }
 
 bool OthelloAI::isCorner(int row, int col)

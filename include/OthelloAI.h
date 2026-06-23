@@ -11,6 +11,7 @@ public:
 
 private:
     static const int SEARCH_DEPTH = 4;
+    static const int ENDGAME_EMPTY_THRESHOLD = 10;
 
     static int minimax(OthelloGame game,
                        int depth,
@@ -19,9 +20,19 @@ private:
                        int alpha,
                        int beta);
 
+    static int endgameSearch(OthelloGame game,
+                             OthelloGame::Cell aiPlayer,
+                             int alpha,
+                             int beta);
+
     static int evaluateBoard(const OthelloGame &game,
                              OthelloGame::Cell aiPlayer,
                              const AIParameters &params);
+
+    static int evaluateFinalResult(const OthelloGame &game,
+                                   OthelloGame::Cell aiPlayer);
+
+    static int countEmptyCells(const OthelloGame &game);
 
     static bool isCorner(int row, int col);
 };
