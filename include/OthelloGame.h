@@ -27,6 +27,7 @@ public:
 
     bool canPlace(int row, int col) const;
     bool canPlaceForPlayer(int row, int col, Cell player) const;
+
     bool placeStone(int row, int col);
 
     GameState checkGameState();
