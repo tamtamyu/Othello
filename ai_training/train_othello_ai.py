@@ -1,5 +1,6 @@
 import json
 import random
+import argparse
 from copy import deepcopy
 
 SIZE = 8
@@ -29,8 +30,6 @@ def opponent(player):
 
 class Othello:
     def __init__(self):
-        self.board = [[EMPTY for _ in range(SIZE)] for _ in range(SIZE)]
-        self.turn = BLACK
         self.reset()
 
     def reset(self):
@@ -50,7 +49,6 @@ class Othello:
 
         if not self.inside(row, col):
             return False
-
         if self.board[row][col] != EMPTY:
             return False
 
@@ -75,14 +73,12 @@ class Othello:
         if player is None:
             player = self.turn
 
-        moves = []
-
-        for row in range(SIZE):
-            for col in range(SIZE):
-                if self.can_place(row, col, player):
-                    moves.append((row, col))
-
-        return moves
+        return [
+            (row, col)
+            for row in range(SIZE)
+            for col in range(SIZE)
+            if self.can_place(row, col, player)
+        ]
 
     def place(self, row, col):
         if not self.can_place(row, col, self.turn):
@@ -140,9 +136,19 @@ def default_params():
     return {
         "position_score": deepcopy(BASE_POSITION_SCORE),
         "flip_weight": 1,
-        "give_corner_penalty": -200,
         "mobility_weight": 3,
+        "give_corner_penalty": -200,
     }
+
+
+def load_params(path):
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def save_params(params, path):
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(params, f, ensure_ascii=False, indent=4)
 
 
 def is_corner(row, col):
@@ -153,26 +159,27 @@ def evaluate_move(game, row, col, params):
     copy_game = deepcopy(game)
 
     player = copy_game.turn
+    enemy = opponent(player)
+
     before = copy_game.count(player)
-
     copy_game.place(row, col)
-
     after = copy_game.count(player)
+
     flipped_count = after - before
 
     score = 0
+
     score += params["position_score"][row][col]
     score += flipped_count * params["flip_weight"]
 
-    # 相手に角を取らせる手を減点
-    for r, c in copy_game.valid_moves(copy_game.turn):
+    for r, c in copy_game.valid_moves(enemy):
         if is_corner(r, c):
             score += params["give_corner_penalty"]
 
-    # 自分の置ける手を増やし、相手の置ける手を減らす
-    opponent_moves = len(copy_game.valid_moves(copy_game.turn))
     own_moves = len(copy_game.valid_moves(player))
-    score += (own_moves - opponent_moves) * params["mobility_weight"]
+    enemy_moves = len(copy_game.valid_moves(enemy))
+
+    score += (own_moves - enemy_moves) * params["mobility_weight"]
 
     return score
 
@@ -211,22 +218,54 @@ def play_game(black_params, white_params):
         state = game.check_pass_or_finish()
 
         if state == "finished":
-            return game.winner()
+            return game.winner(), game.count(BLACK), game.count(WHITE)
 
 
-def mutate_params(params):
+def battle(params_a, params_b, games=100):
+    a_wins = 0
+    b_wins = 0
+    draws = 0
+
+    for i in range(games):
+        if i % 2 == 0:
+            winner, _, _ = play_game(params_a, params_b)
+
+            if winner == BLACK:
+                a_wins += 1
+            elif winner == WHITE:
+                b_wins += 1
+            else:
+                draws += 1
+
+        else:
+            winner, _, _ = play_game(params_b, params_a)
+
+            if winner == BLACK:
+                b_wins += 1
+            elif winner == WHITE:
+                a_wins += 1
+            else:
+                draws += 1
+
+    return a_wins, b_wins, draws
+
+
+def mutate_params(params, mutation_rate=0.2):
     new_params = deepcopy(params)
 
-    # 位置評価を少し変える
     for row in range(SIZE):
         for col in range(SIZE):
-            if random.random() < 0.2:
+            if random.random() < mutation_rate:
                 new_params["position_score"][row][col] += random.randint(-5, 5)
 
-    # 各重みを少し変える
-    new_params["flip_weight"] += random.choice([-1, 0, 1])
-    new_params["mobility_weight"] += random.choice([-1, 0, 1])
-    new_params["give_corner_penalty"] += random.randint(-20, 20)
+    if random.random() < 0.5:
+        new_params["flip_weight"] += random.choice([-1, 0, 1])
+
+    if random.random() < 0.5:
+        new_params["mobility_weight"] += random.choice([-1, 0, 1])
+
+    if random.random() < 0.5:
+        new_params["give_corner_penalty"] += random.randint(-20, 20)
 
     new_params["flip_weight"] = max(0, new_params["flip_weight"])
     new_params["mobility_weight"] = max(0, new_params["mobility_weight"])
@@ -235,68 +274,86 @@ def mutate_params(params):
     return new_params
 
 
-def battle(params_a, params_b, games=50):
-    score_a = 0
-    score_b = 0
-
-    for i in range(games):
-        if i % 2 == 0:
-            winner = play_game(params_a, params_b)
-
-            if winner == BLACK:
-                score_a += 1
-            elif winner == WHITE:
-                score_b += 1
-        else:
-            winner = play_game(params_b, params_a)
-
-            if winner == WHITE:
-                score_a += 1
-            elif winner == BLACK:
-                score_b += 1
-
-    return score_a, score_b
-
-
-def train(generations=200, games_per_generation=50):
-    best_params = default_params()
+def train(input_path=None, generations=200, games_per_generation=50, mutation_rate=0.2):
+    if input_path:
+        best_params = load_params(input_path)
+        print(f"開始AI: {input_path}")
+    else:
+        best_params = default_params()
+        print("開始AI: default_params")
 
     for gen in range(1, generations + 1):
-        challenger = mutate_params(best_params)
+        challenger = mutate_params(best_params, mutation_rate)
 
-        best_score, challenger_score = battle(
+        best_wins, challenger_wins, draws = battle(
             best_params,
             challenger,
             games=games_per_generation
         )
 
-        if challenger_score > best_score:
+        if challenger_wins > best_wins:
             best_params = challenger
             result = "採用"
         else:
             result = "維持"
 
         print(
-            f"世代 {gen:03d}: "
-            f"現AI {best_score}勝 / 新AI {challenger_score}勝 → {result}"
+            f"世代 {gen:04d}: "
+            f"現AI {best_wins}勝 / 新AI {challenger_wins}勝 / 引分 {draws} → {result}"
         )
 
     return best_params
 
 
-def save_params(params, filename="ai_params.json"):
-    with open(filename, "w", encoding="utf-8") as f:
-        json.dump(params, f, ensure_ascii=False, indent=4)
+def run_battle(path_a, path_b, games):
+    params_a = load_params(path_a)
+    params_b = load_params(path_b)
+
+    a_wins, b_wins, draws = battle(params_a, params_b, games)
+
+    total = a_wins + b_wins + draws
+
+    print("=== AI対戦結果 ===")
+    print(f"AI A: {path_a}")
+    print(f"AI B: {path_b}")
+    print(f"対局数: {total}")
+    print(f"AI A 勝利: {a_wins}勝 ({a_wins / total * 100:.1f}%)")
+    print(f"AI B 勝利: {b_wins}勝 ({b_wins / total * 100:.1f}%)")
+    print(f"引き分け: {draws}局 ({draws / total * 100:.1f}%)")
+
+
+def main():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("--mode", choices=["train", "battle"], default="train")
+
+    parser.add_argument("--input", default=None)
+    parser.add_argument("--output", default="ai_params.json")
+
+    parser.add_argument("--ai-a", default="ai_params.json")
+    parser.add_argument("--ai-b", default="ai_params.json")
+
+    parser.add_argument("--generations", type=int, default=200)
+    parser.add_argument("--games", type=int, default=50)
+    parser.add_argument("--mutation-rate", type=float, default=0.2)
+
+    args = parser.parse_args()
+
+    if args.mode == "train":
+        params = train(
+            input_path=args.input,
+            generations=args.generations,
+            games_per_generation=args.games,
+            mutation_rate=args.mutation_rate
+        )
+
+        save_params(params, args.output)
+        print(f"学習完了: {args.output} を保存しました")
+
+    elif args.mode == "battle":
+        run_battle(args.ai_a, args.ai_b, args.games)
 
 
 if __name__ == "__main__":
     random.seed()
-
-    params = train(
-        generations=200,
-        games_per_generation=50
-    )
-
-    save_params(params)
-
-    print("学習完了: ai_params.json を保存しました")
+    main()
