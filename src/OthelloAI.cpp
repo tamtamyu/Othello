@@ -13,18 +13,32 @@ bool OthelloAI::chooseMove(const OthelloGame &game, int &bestRow, int &bestCol)
     bestRow = -1;
     bestCol = -1;
 
+    int alpha = -100000000;
+    int beta = 100000000;
+
     for (int row = 0; row < OthelloGame::SIZE; ++row) {
         for (int col = 0; col < OthelloGame::SIZE; ++col) {
             if (game.canPlace(row, col)) {
                 OthelloGame copy = game;
                 copy.placeStone(row, col);
 
-                int score = minimax(copy, SEARCH_DEPTH - 1, aiPlayer, params);
+                int score = minimax(
+                    copy,
+                    SEARCH_DEPTH - 1,
+                    aiPlayer,
+                    params,
+                    alpha,
+                    beta
+                );
 
                 if (score > bestScore) {
                     bestScore = score;
                     bestRow = row;
                     bestCol = col;
+                }
+
+                if (bestScore > alpha) {
+                    alpha = bestScore;
                 }
             }
         }
@@ -33,9 +47,12 @@ bool OthelloAI::chooseMove(const OthelloGame &game, int &bestRow, int &bestCol)
     return bestRow != -1 && bestCol != -1;
 }
 
-int OthelloAI::minimax(OthelloGame game, int depth,
+int OthelloAI::minimax(OthelloGame game,
+                       int depth,
                        OthelloGame::Cell aiPlayer,
-                       const AIParameters &params)
+                       const AIParameters &params,
+                       int alpha,
+                       int beta)
 {
     OthelloGame::GameState state = game.checkGameState();
 
@@ -44,7 +61,6 @@ int OthelloAI::minimax(OthelloGame game, int depth,
     }
 
     OthelloGame::Cell currentPlayer = game.getCurrentPlayer();
-
     bool maximizing = currentPlayer == aiPlayer;
 
     if (maximizing) {
@@ -56,10 +72,25 @@ int OthelloAI::minimax(OthelloGame game, int depth,
                     OthelloGame copy = game;
                     copy.placeStone(row, col);
 
-                    int score = minimax(copy, depth - 1, aiPlayer, params);
+                    int score = minimax(
+                        copy,
+                        depth - 1,
+                        aiPlayer,
+                        params,
+                        alpha,
+                        beta
+                    );
 
                     if (score > bestScore) {
                         bestScore = score;
+                    }
+
+                    if (bestScore > alpha) {
+                        alpha = bestScore;
+                    }
+
+                    if (beta <= alpha) {
+                        return bestScore;
                     }
                 }
             }
@@ -75,10 +106,25 @@ int OthelloAI::minimax(OthelloGame game, int depth,
                     OthelloGame copy = game;
                     copy.placeStone(row, col);
 
-                    int score = minimax(copy, depth - 1, aiPlayer, params);
+                    int score = minimax(
+                        copy,
+                        depth - 1,
+                        aiPlayer,
+                        params,
+                        alpha,
+                        beta
+                    );
 
                     if (score < bestScore) {
                         bestScore = score;
+                    }
+
+                    if (bestScore < beta) {
+                        beta = bestScore;
+                    }
+
+                    if (beta <= alpha) {
+                        return bestScore;
                     }
                 }
             }

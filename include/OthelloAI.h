@@ -10,11 +10,14 @@ public:
     static bool chooseMove(const OthelloGame &game, int &bestRow, int &bestCol);
 
 private:
-    static const int SEARCH_DEPTH = 2;
+    static const int SEARCH_DEPTH = 4;
 
-    static int minimax(OthelloGame game, int depth,
+    static int minimax(OthelloGame game,
+                       int depth,
                        OthelloGame::Cell aiPlayer,
-                       const AIParameters &params);
+                       const AIParameters &params,
+                       int alpha,
+                       int beta);
 
     static int evaluateBoard(const OthelloGame &game,
                              OthelloGame::Cell aiPlayer,
